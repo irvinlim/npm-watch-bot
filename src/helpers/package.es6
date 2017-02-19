@@ -23,27 +23,13 @@ export const updatePackageFromNpm = async (npmPackage) => {
     };
 
     // Check if package exists in the db, and if it is up to date.
-    let pkg;
-
-    try {
-        pkg = await Package.where("name", npmPackage.name).fetch();
-    } catch (err) {
-        console.error(err);
-    }
+    let pkg = await Package.where("name", npmPackage.name).fetch();
 
     if (!pkg) {
-        try {
-            pkg = await Package.forge(npmPackage).save();
-        } catch (err) {
-            console.error(err);
-        }
+        pkg = await Package.forge(npmPackage).save();
     } else if (moment(npmPackage.date_published).isAfter(pkg.get("date_published"))) {
-        try {
-            pkg = await Package.where("name", npmPackage.name).save(npmPackage, { patch: true });
-            await notifyWatchers(pkg);
-        } catch (err) {
-            console.error(err);
-        }
+        pkg = await Package.where("name", npmPackage.name).save(npmPackage, { patch: true });
+        await notifyWatchers(pkg);
     }
 
     return pkg;
