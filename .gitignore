@@ -1,0 +1,6 @@
+/build
+/src/config/env/private
+/src/config/env/local.es6
+.apirc
+
+**/node_modules
