@@ -16,8 +16,6 @@ export default {
                 version,
                 date_published,
             };
-        }).catch(err => {
-            return null;
         });
     },
 };

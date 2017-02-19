@@ -14,7 +14,8 @@ export default class extends AbstractRouter {
     constructor(services) {
         super(services);
 
-        this.getNpmPackage = this.getNpmPackage.bind(this);
+        this.retrieveAndUpdateFromNpm = this.retrieveAndUpdateFromNpm.bind(this);
+        this.getUsersWatching = this.getUsersWatching.bind(this);
         this.updateNpmPackage = this.updateNpmPackage.bind(this);
 
         this.handleCommand = this.handleCommand.bind(this);
@@ -39,6 +40,7 @@ export default class extends AbstractRouter {
 
             // Ignore old messages
             if (messageDate.isSameOrBefore(user.get("last_message_time"))) {
+                context.body = { status: "success" };
                 return;
             }
 
@@ -46,21 +48,22 @@ export default class extends AbstractRouter {
             user = await User.forge({ id: user.id }).save({ last_message_time: messageDate.toDate() }, { patch: true });
 
             // Routing to specific methods
-            await this.handleCommand({
-                user,
-                ...extractCommand(text)
-            });
+            await this.handleCommand({ user, text });
+
+            context.body = { status: "success" };
         });
     }
 
-    handleCommand({ user, command, value }) {
+    handleCommand({ user, text }) {
+        const { command, value } = extractCommand(text);
+
         switch (command) {
             case "add":
                 return this.receiveAdd({ user, packageName: value });
             case "check":
                 return this.receiveCheck({ user, packageName: value });
             default:
-                return this.receiveMessage({ user, text: value });
+                return this.receiveMessage({ user, text });
         }
     }
 
@@ -69,18 +72,81 @@ export default class extends AbstractRouter {
     }
 
     async receiveAdd({ user, packageName }) {
-    }
+        const PackagesWatching = Models.PackagesWatching;
 
-    async receiveCheck({ user, packageName }) {
-        let npmPackage = await this.getNpmPackage({ user, packageName });
-
-        if (!npmPackage) {
+        // Retrieve package from npm.
+        try {
+            await this.retrieveAndUpdateFromNpm(packageName);
+        } catch (err) {
             return this.sendNoSuchPackageMessage({ user, packageName });
         }
 
-        const pkg = await this.updateNpmPackage(npmPackage);
+        // Add package to watch list.
+        try {
+            await PackagesWatching.forge({ package_name: packageName, user_id: user.get("id") }).save();
+        } catch (err) {
+            if (err.code == "ER_DUP_ENTRY") {
+                this.sendMessage({ user, text: `You have already added ${ packageName } to your watch list. Use /remove ${ packageName } to remove it from your watch list.` });
+            } else {
+                this.sendMessage({ user, text: `An error occured while trying to add ${ packageName } to your watch list.` });
+            }
 
-        return this.sendLatestVersionMessage({ user, pkg });
+            return;
+        }
+
+        // Notify user.
+        return this.sendMessage({ user, text: `Hooray! ${ packageName } is now added to your watch list. NpmWatchBot will notify you whenever there is an update to the package!` });
+    }
+
+    async receiveCheck({ user, packageName }) {
+        let pkg;
+
+        // Retrieve package from npm.
+        try {
+            pkg = await this.retrieveAndUpdateFromNpm(packageName);
+        } catch (err) {
+            return this.sendNoSuchPackageMessage({ user, packageName });
+        }
+
+        // Notify user.
+        this.sendLatestVersionMessage({ user, pkg });
+    }
+
+    async retrieveAndUpdateFromNpm(packageName) {
+        return Npm.getPackage(packageName).then(npmPackage => {
+            return this.updateNpmPackage(npmPackage);
+        });
+    }
+
+    async updateNpmPackage(npmPackage) {
+        const Package = Models.Package;
+
+        // Convert date into proper format for knex.
+        npmPackage = {
+            ...npmPackage,
+            date_published: moment(npmPackage.date_published).format("YYYY-MM-DD HH:mm:ss"),
+        };
+
+        // Check if package exists in the db, and if it is up to date.
+        let pkg = await Package.where("name", npmPackage.name).fetch();
+
+        if (!pkg) {
+            pkg = await Package.forge(npmPackage).save();
+        } else if (moment(npmPackage.date_published).isAfter(pkg.get("date_published"))) {
+            // Package update
+            pkg = await Package.forge({ name: npmPackage.name }).save(npmPackage, { patch: true });
+
+        }
+
+        return pkg;
+    }
+
+    getUsersWatching(packageName) {
+        const Package = Models.Package;
+        const PackagesWatching = Models.PackagesWatching;
+
+        return PackagesWatching.where("package_name", packageName)
+            .fetchAll({ withRelated: ['packages.name'] });
     }
 
     sendMessage({ user, text }) {
@@ -108,39 +174,6 @@ export default class extends AbstractRouter {
             text: `There is a new version of ${ pkg.get("name") } (https://www.npmjs.com/package/${ pkg.get("name") }) available (v${ pkg.get("version") }), `
                 + `published ${ moment(pkg.get("date_published")).fromNow() }.`
         });
-    }
-
-    async getNpmPackage({ user, packageName }) {
-        const npmPackage = await Npm.getPackage(packageName);
-
-        if (!npmPackage) {
-            this.sendMessage({ user, text: "No such package." });
-        }
-
-        return npmPackage;
-    }
-
-    async updateNpmPackage(npmPackage) {
-        const Package = Models.Package;
-
-        // Convert date into proper format for knex.
-        npmPackage = {
-            ...npmPackage,
-            date_published: moment(npmPackage.date_published).format("YYYY-MM-DD HH:mm:ss"),
-        };
-
-        // Check if package exists in the db, and if it is up to date.
-        let pkg = await Package.where("name", npmPackage.name).fetch();
-
-        if (!pkg) {
-            pkg = await Package.forge(npmPackage).save();
-        } else if (moment(npmPackage.date_published).isAfter(pkg.get("date_published"))) {
-            // Package update
-            pkg = await Package.forge({ name: npmPackage.name }).save(npmPackage, { patch: true });
-
-        }
-
-        return pkg;
     }
 
 }

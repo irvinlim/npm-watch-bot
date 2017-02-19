@@ -12,6 +12,7 @@ export default {
             json: {
                 chat_id,
                 text,
+                parse_mode: "Markdown"
             },
         });
     },
