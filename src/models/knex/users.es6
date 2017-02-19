@@ -13,5 +13,12 @@ export default {
 
     data: [],
 
-    model: "User"
+    model: [
+        "User",
+        {
+            watching: function () {
+                return this.hasMany("PackagesWatching");
+            },
+        }
+    ]
 }

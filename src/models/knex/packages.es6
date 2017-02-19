@@ -8,5 +8,12 @@ export default {
 
     data: [],
 
-    model: "Package"
+    model: [
+        "Package",
+        {
+            watchers: function () {
+                return this.hasMany("PackagesWatching");
+            },
+        }
+    ]
 }

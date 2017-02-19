@@ -6,8 +6,9 @@ import AbstractRouter from "../AbstractRouter";
 import extractCommand from "../../helpers/extract_command";
 import Npm from "../../helpers/npm";
 import Telegram from "../../helpers/telegram";
+import { notifyWatchers } from "../../helpers/package_watchers";
 
-import Models from "../../models/bookshelf";
+import Models, { knex } from "../../models/bookshelf";
 
 export default class extends AbstractRouter {
 
@@ -15,16 +16,12 @@ export default class extends AbstractRouter {
         super(services);
 
         this.retrieveAndUpdateFromNpm = this.retrieveAndUpdateFromNpm.bind(this);
-        this.getUsersWatching = this.getUsersWatching.bind(this);
         this.updateNpmPackage = this.updateNpmPackage.bind(this);
 
         this.handleCommand = this.handleCommand.bind(this);
         this.receiveCheck = this.receiveCheck.bind(this);
         this.receiveMessage = this.receiveMessage.bind(this);
         this.receiveAdd = this.receiveAdd.bind(this);
-        this.sendMessage = this.sendMessage.bind(this);
-        this.sendNoSuchPackageMessage = this.sendNoSuchPackageMessage.bind(this);
-        this.sendLatestVersionMessage = this.sendLatestVersionMessage.bind(this);
     }
 
     initialize({ router, User }) {
@@ -78,7 +75,7 @@ export default class extends AbstractRouter {
         try {
             await this.retrieveAndUpdateFromNpm(packageName);
         } catch (err) {
-            return this.sendNoSuchPackageMessage({ user, packageName });
+            return Telegram.sendNoSuchPackageMessage(user, packageName);
         }
 
         // Add package to watch list.
@@ -86,16 +83,16 @@ export default class extends AbstractRouter {
             await PackagesWatching.forge({ package_name: packageName, user_id: user.get("id") }).save();
         } catch (err) {
             if (err.code == "ER_DUP_ENTRY") {
-                this.sendMessage({ user, text: `You have already added ${ packageName } to your watch list. Use /remove ${ packageName } to remove it from your watch list.` });
+                Telegram.sendMessageToUser(user, `You have already added ${ packageName } to your watch list. Use /remove ${ packageName } to remove it from your watch list.`);
             } else {
-                this.sendMessage({ user, text: `An error occured while trying to add ${ packageName } to your watch list.` });
+                Telegram.sendMessageToUser(user, `An error occured while trying to add ${ packageName } to your watch list.`);
             }
 
             return;
         }
 
         // Notify user.
-        return this.sendMessage({ user, text: `Hooray! ${ packageName } is now added to your watch list. NpmWatchBot will notify you whenever there is an update to the package!` });
+        return Telegram.sendMessageToUser(user, `Hooray! ${ packageName } is now added to your watch list. NpmWatchBot will notify you whenever there is an update to the package!`);
     }
 
     async receiveCheck({ user, packageName }) {
@@ -105,11 +102,11 @@ export default class extends AbstractRouter {
         try {
             pkg = await this.retrieveAndUpdateFromNpm(packageName);
         } catch (err) {
-            return this.sendNoSuchPackageMessage({ user, packageName });
+            return Telegram.sendNoSuchPackageMessage(user, packageName);
         }
 
         // Notify user.
-        this.sendLatestVersionMessage({ user, pkg });
+        return Telegram.sendLatestVersionMessage(user, pkg);
     }
 
     async retrieveAndUpdateFromNpm(packageName) {
@@ -133,47 +130,18 @@ export default class extends AbstractRouter {
         if (!pkg) {
             pkg = await Package.forge(npmPackage).save();
         } else if (moment(npmPackage.date_published).isAfter(pkg.get("date_published"))) {
-            // Package update
-            pkg = await Package.forge({ name: npmPackage.name }).save(npmPackage, { patch: true });
+            try {
+                // Package update
+                pkg = await Package.where("name", npmPackage.name).save(npmPackage, { patch: true });
 
+                // Notify other watchers
+                await notifyWatchers(pkg);
+            } catch (err) {
+                console.error(err);
+            }
         }
 
         return pkg;
-    }
-
-    getUsersWatching(packageName) {
-        const Package = Models.Package;
-        const PackagesWatching = Models.PackagesWatching;
-
-        return PackagesWatching.where("package_name", packageName)
-            .fetchAll({ withRelated: ['packages.name'] });
-    }
-
-    sendMessage({ user, text }) {
-        return Telegram.sendMessage(user.get("id"), text);
-    }
-
-    sendNoSuchPackageMessage({ user, packageName }) {
-        return this.sendMessage({
-            user,
-            text: `No such package on npm: ${ packageName }`
-        });
-    }
-
-    sendLatestVersionMessage({ user, pkg }) {
-        return this.sendMessage({
-            user,
-            text: `Latest version of ${ pkg.get("name") } (https://www.npmjs.com/package/${ pkg.get("name") }) is v${ pkg.get("version") }, `
-                + `published ${ moment(pkg.get("date_published")).fromNow() }.`
-        });
-    }
-
-    sendNewVersionMessage({ user, pkg }) {
-        return this.sendMessage({
-            user,
-            text: `There is a new version of ${ pkg.get("name") } (https://www.npmjs.com/package/${ pkg.get("name") }) available (v${ pkg.get("version") }), `
-                + `published ${ moment(pkg.get("date_published")).fromNow() }.`
-        });
     }
 
 }
