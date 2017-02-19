@@ -4,9 +4,9 @@ import moment from "moment";
 import AbstractRouter from "../AbstractRouter";
 
 import extractCommand from "../../helpers/extract_command";
-import Npm from "../../helpers/npm";
 import Telegram from "../../helpers/telegram";
 import { notifyWatchers } from "../../helpers/package_watchers";
+import { retrieveAndUpdateFromNpm, updatePackageFromNpm } from '../../helpers/package';
 
 import Models, { knex } from "../../models/bookshelf";
 
@@ -14,9 +14,6 @@ export default class extends AbstractRouter {
 
     constructor(services) {
         super(services);
-
-        this.retrieveAndUpdateFromNpm = this.retrieveAndUpdateFromNpm.bind(this);
-        this.updateNpmPackage = this.updateNpmPackage.bind(this);
 
         this.handleCommand = this.handleCommand.bind(this);
         this.receiveCheck = this.receiveCheck.bind(this);
@@ -45,7 +42,11 @@ export default class extends AbstractRouter {
             user = await User.forge({ id: user.id }).save({ last_message_time: messageDate.toDate() }, { patch: true });
 
             // Routing to specific methods
-            await this.handleCommand({ user, text });
+            try {
+                await this.handleCommand({ user, text });
+            } catch (err) {
+                console.error(err);
+            }
 
             context.body = { status: "success" };
         });
@@ -73,7 +74,7 @@ export default class extends AbstractRouter {
 
         // Retrieve package from npm.
         try {
-            await this.retrieveAndUpdateFromNpm(packageName);
+            await retrieveAndUpdateFromNpm(packageName);
         } catch (err) {
             return Telegram.sendNoSuchPackageMessage(user, packageName);
         }
@@ -100,48 +101,13 @@ export default class extends AbstractRouter {
 
         // Retrieve package from npm.
         try {
-            pkg = await this.retrieveAndUpdateFromNpm(packageName);
+            pkg = await retrieveAndUpdateFromNpm(packageName);
         } catch (err) {
             return Telegram.sendNoSuchPackageMessage(user, packageName);
         }
 
         // Notify user.
         return Telegram.sendLatestVersionMessage(user, pkg);
-    }
-
-    async retrieveAndUpdateFromNpm(packageName) {
-        return Npm.getPackage(packageName).then(npmPackage => {
-            return this.updateNpmPackage(npmPackage);
-        });
-    }
-
-    async updateNpmPackage(npmPackage) {
-        const Package = Models.Package;
-
-        // Convert date into proper format for knex.
-        npmPackage = {
-            ...npmPackage,
-            date_published: moment(npmPackage.date_published).format("YYYY-MM-DD HH:mm:ss"),
-        };
-
-        // Check if package exists in the db, and if it is up to date.
-        let pkg = await Package.where("name", npmPackage.name).fetch();
-
-        if (!pkg) {
-            pkg = await Package.forge(npmPackage).save();
-        } else if (moment(npmPackage.date_published).isAfter(pkg.get("date_published"))) {
-            try {
-                // Package update
-                pkg = await Package.where("name", npmPackage.name).save(npmPackage, { patch: true });
-
-                // Notify other watchers
-                await notifyWatchers(pkg);
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        return pkg;
     }
 
 }

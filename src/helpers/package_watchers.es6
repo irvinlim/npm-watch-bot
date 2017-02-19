@@ -1,6 +1,11 @@
 'use strict';
 
+import moment from 'moment';
+import Npm from './npm';
 import Telegram from './telegram';
+import Models from "../models/bookshelf";
+
+import { updatePackageFromNpm } from './package';
 
 export const getUsersWatching = (packageName) => {
     const User = Models.User;
@@ -13,7 +18,19 @@ export const getUsersWatching = (packageName) => {
 
 export const notifyWatchers = async (pkg) => {
     const watchers = await getUsersWatching(pkg.get("name"));
+
     watchers.forEach(watcher => {
         Telegram.sendNewVersionMessage(watcher, pkg);
+    });
+};
+
+export const checkForUpdates = () => {
+    const Package = Models.Package;
+
+    let packages = Package.fetchAll();
+
+    packages.forEach(async pkg => {
+        const npmPackage = Npm.getPackage(packageName);
+        await updatePackageFromNpm(npmPackage);
     });
 };
