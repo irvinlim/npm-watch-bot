@@ -19,6 +19,7 @@ export default class extends AbstractRouter {
         this.receiveCheck = this.receiveCheck.bind(this);
         this.receiveMessage = this.receiveMessage.bind(this);
         this.receiveAdd = this.receiveAdd.bind(this);
+        this.receiveRemove = this.receiveRemove.bind(this);
     }
 
     initialize({ router, User }) {
@@ -58,6 +59,8 @@ export default class extends AbstractRouter {
         switch (command) {
             case "add":
                 return this.receiveAdd({ user, packageName: value });
+            case "remove":
+                return this.receiveRemove({ user, packageName: value });
             case "check":
                 return this.receiveCheck({ user, packageName: value });
             default:
@@ -94,6 +97,21 @@ export default class extends AbstractRouter {
 
         // Notify user.
         return Telegram.sendMessageToUser(user, `Hooray! ${ packageName } is now added to your watch list. NpmWatchBot will notify you whenever there is an update to the package!`);
+    }
+
+    async receiveRemove({ user, packageName }) {
+        const PackagesWatching = Models.PackagesWatching;
+
+        // Remove package from watch list.
+        try {
+            await PackagesWatching.where({ package_name: packageName, user_id: user.get("id") }).destroy({ require: true });
+        } catch (err) {
+            Telegram.sendMessageToUser(user, `An error occured while trying to remove ${ packageName } from your watch list.`);
+            return;
+        }
+
+        // Notify user.
+        return Telegram.sendMessageToUser(user, `Alright, you are no longer watching updates to ${ packageName }. Use /add ${ packageName } to add it back to your watch list.`);
     }
 
     async receiveCheck({ user, packageName }) {
