@@ -1,3 +1,3 @@
 export default {
-    telegramToken: "TELEGRAM_TOKEN",
+    token: "TELEGRAM_TOKEN",
 }
