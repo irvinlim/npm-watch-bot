@@ -11,6 +11,7 @@ export default {
     model: [
         "Package",
         {
+            idAttribute: "name",
             watchers: function () {
                 return this.hasMany("PackagesWatching");
             },

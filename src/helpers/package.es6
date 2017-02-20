@@ -4,7 +4,9 @@ import Models from "../models/bookshelf";
 
 import moment from 'moment';
 import Npm from "./npm";
+
 import { notifyWatchers } from './package_watchers';
+import { formatIsoDate } from './date';
 
 export const retrieveAndUpdateFromNpm = async (packageName) => {
     const npmPackage = await Npm.getPackage(packageName);
@@ -19,7 +21,7 @@ export const updatePackageFromNpm = async (npmPackage) => {
     // Convert date into proper format for knex.
     npmPackage = {
         ...npmPackage,
-        date_published: moment(npmPackage.date_published).format("YYYY-MM-DD HH:mm:ss"),
+        date_published: formatIsoDate(npmPackage.date_published),
     };
 
     // Check if package exists in the db, and if it is up to date.

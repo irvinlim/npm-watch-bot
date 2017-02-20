@@ -11,6 +11,7 @@ import MountRouters from "./routers/mount_routers";
 import Config from "./config";
 import Models, {bookshelf, knex} from "./models/bookshelf";
 import PatchCheckBody from "./helpers/patch_check_body";
+import { checkForUpdates } from './helpers/package_watchers';
 
 const version = "v1";
 
@@ -42,3 +43,8 @@ PatchCheckBody(knex, Models)
     });
 
 //endregion
+
+
+// Poll for updates
+const intervalSeconds = Config.checkForUpdates.pollRate;
+setInterval(checkForUpdates, intervalSeconds * 1000);
