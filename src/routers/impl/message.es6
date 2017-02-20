@@ -69,7 +69,15 @@ export default class extends AbstractRouter {
     }
 
     async receiveMessage({ user, text }) {
-        console.log(text);
+        Telegram.sendMessageToUser(
+            user,
+            'Hello, I am NpmWatchBot! I help watch repositories on the *npm* repository for updates, so that you will be notified when a package updates, as it updates!\n\n'
+            + 'Commands:\n'
+            + '`/add package_name`: Adds a package to your watch list.\n'
+            + '`/remove package_name`: Removes a package from your watch list.\n'
+            + '`/check package_name`: Immediately checks a package from npm for updates.\n\n'
+            + 'For questions or bug reports, you may find my source code at https://github.com/irvinlim/npm-watch-bot. Or you can bug my maker Irvin Lim (@irvinlim) at https://irvinlim.com.'
+        );
     }
 
     async receiveAdd({ user, packageName }) {
