@@ -75,6 +75,10 @@ export default class extends AbstractRouter {
     async receiveAdd({ user, packageName }) {
         const PackagesWatching = Models.PackagesWatching;
 
+        if (!packageName || !packageName.length) {
+            return Telegram.sendMessageToUser(user, 'Usage: `/add package_name`');
+        }
+
         // Retrieve package from npm.
         try {
             await retrieveAndUpdateFromNpm(packageName);
@@ -102,6 +106,10 @@ export default class extends AbstractRouter {
     async receiveRemove({ user, packageName }) {
         const PackagesWatching = Models.PackagesWatching;
 
+        if (!packageName || !packageName.length) {
+            return Telegram.sendMessageToUser(user, 'Usage: `/remove package_name`');
+        }
+
         // Remove package from watch list.
         try {
             await PackagesWatching.where({ package_name: packageName, user_id: user.get("id") }).destroy({ require: true });
@@ -116,6 +124,10 @@ export default class extends AbstractRouter {
 
     async receiveCheck({ user, packageName }) {
         let pkg;
+
+        if (!packageName || !packageName.length) {
+            return Telegram.sendMessageToUser(user, 'Usage: `/check package_name`');
+        }
 
         // Retrieve package from npm.
         try {
