@@ -184,7 +184,7 @@ export default class extends AbstractRouter {
         // Create message.
         let msg = 'Here are your currently watched packages.\n\n';
         pkgList.models.forEach(pkg => {
-            msg += `${pkg.get('package_name')} (https://www.npmjs.com/package/)${pkg.get('package_name')}\n`;
+            msg += `\`${pkg.get('package_name')}\` (https://www.npmjs.com/package/${pkg.get('package_name')})\n`;
         });
 
         return Telegram.sendMessageToUser(user, msg);
