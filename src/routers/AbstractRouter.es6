@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 import Router from 'koa-router';
 
@@ -7,9 +7,7 @@ export default class AbstractRouter {
         this.services = services;
     }
 
-    initialize(objects) {
-
-    }
+    initialize(objects) {}
 
     get useJwt() {
         return true;

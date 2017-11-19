@@ -11,26 +11,26 @@
  */
 
 import requireDir from 'require-dir';
-import Rc from "rc";
+import Rc from 'rc';
 import deepAssign from 'deep-assign';
-
 
 let CURRENT_ENV = process.env.NODE_ENV;
 
 if (!CURRENT_ENV) {
     // If env unspecified, get it from "~/.apirc". Format: "{env: ENV_NAME}"
     try {
-        let apiRc = Rc("api");
-        CURRENT_ENV = apiRc.env || "local";
+        let apiRc = Rc('api');
+        CURRENT_ENV = apiRc.env || 'local';
     } catch (e) {
-        CURRENT_ENV = "local";
+        CURRENT_ENV = 'local';
     }
 }
 
-const nonSensitiveConfig = require("./env/" + CURRENT_ENV);
-if (!nonSensitiveConfig) throw new Error(`Current environment not found in config: ${CURRENT_ENV}`);
+const nonSensitiveConfig = require('./env/' + CURRENT_ENV);
+if (!nonSensitiveConfig)
+    throw new Error(`Current environment not found in config: ${CURRENT_ENV}`);
 
-const sensitiveConfig = requireDir("./env/private");
+const sensitiveConfig = requireDir('./env/private');
 const defaultExtractor = x => (x && x.default) || x; // If x has default (ES6 export default), get x.default
 
 let CONFIG = deepAssign({}, defaultExtractor(nonSensitiveConfig));
@@ -40,13 +40,18 @@ for (let key of Object.keys(sensitiveConfig)) {
     deepAssign(CONFIG, { [key]: config });
 }
 
-export {CURRENT_ENV};
+export { CURRENT_ENV };
 export default new Proxy(CONFIG, {
-    get: function (target, property) {
-        if (property === "toJSON") return JSON.stringify(target);
+    get: function(target, property) {
+        if (property === 'toJSON') return JSON.stringify(target);
 
         let ret = target[property];
-        if (ret == undefined) throw new Error(`Cannot find config "${property}" in current environment (${CURRENT_ENV}).`);
+        if (ret == undefined)
+            throw new Error(
+                `Cannot find config "${property}" in current environment (${
+                    CURRENT_ENV
+                }).`
+            );
         return ret;
-    }
+    },
 });
