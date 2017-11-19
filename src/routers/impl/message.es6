@@ -56,6 +56,8 @@ export default class extends AbstractRouter {
         const { command, value } = extractCommand(text);
 
         switch (command) {
+            case 'list':
+                return this.receiveList({ user });
             case 'add':
                 return this.receiveAdd({ user, packageName: value });
             case 'remove':
